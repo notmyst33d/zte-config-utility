@@ -124,11 +124,17 @@ def main():
             if len(generated) > 1:
                 print("Trying key: '%s' iv: '%s' generated from %s" % (key, iv, source))
 
-            decryptor = CBCXcryptor()
-            decryptor.set_key(key, iv)
+            if not iv:
+                decryptor = Xcryptor()
+                decryptor.set_key(key)
+            else:
+                decryptor = CBCXcryptor()
+                decryptor.set_key(key, iv)
             infile.seek(start_pos)
             decrypted = decryptor.decrypt(infile)
-            if zcu.zte.read_payload_type(decrypted, raise_on_error=False) is not None:
+            header = decrypted.read(4)
+            decrypted.seek(0)
+            if zcu.zte.read_payload_type(decrypted, raise_on_error=False) is not None or header == b"<DB>":
                 matched = source
                 infile = decrypted
                 break
@@ -175,8 +181,12 @@ def main():
         error("Unknown payload type %d encountered!" % payload_type)
         return 1
 
-    res, _ = zcu.compression.decompress(infile)
-    outfile.write(res.read())
+    try:
+        res, _ = zcu.compression.decompress(infile)
+        outfile.write(res.read())
+    except:
+        infile.seek(0)
+        outfile.write(infile.read())
 
     if matched is not None:
         print("Successfully decoded using %s!" % matched)

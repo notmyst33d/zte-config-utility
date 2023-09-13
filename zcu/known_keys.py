@@ -1,5 +1,8 @@
 """Known encryption keys for ZTE router config.bin files"""
 
+import binascii
+import hashlib
+
 # 1st element is the key, everything else is the start of the signature
 KNOWN_KEYS = {
     "MIK@0STzKpB%qJZe": ["zxhn h118n e"],
@@ -75,6 +78,20 @@ def serial_keygen(params, key_prefix='8cc72b05705d5c46', iv_prefix='667b02a85c61
     except AttributeError:
         return ()
 
+# Reverse engineered from RT-GM-5 (aka ZTE ZXHN F680)
+def serialmac_keygen(params):
+    if hasattr(params, "serial"):
+        serial = binascii.unhexlify(params.serial[8:]).hex().upper()
+    if hasattr(params, "mac"):
+        mac = binascii.unhexlify(params.mac)
+
+    try:
+        rawkey = "%s%02x%02x%02x%02x%02x%02x" % (serial, mac[5], mac[4], mac[3], mac[2], mac[1], mac[0])
+        key = hashlib.md5(rawkey.encode("ascii")).hexdigest()[:16]
+        return (key, None, "serialmac: serial='%s' mac='%s'" % (params.serial, mac_to_str(params.mac)))
+    except:
+        return ()
+
 def signature_keygen(params, key_suffix='Key02721401', iv_suffix='Iv02721401'):
     if hasattr(params, 'key_suffix'):
         key_suffix = params.key_suffix
@@ -98,7 +115,7 @@ KNOWN_KEYGENS = {
     (lambda p : signature_keygen(p, key_suffix='Key02710001', iv_suffix='Iv02710001')): ["H188A", "H288A"],
     (lambda p : signature_keygen(p, key_suffix='Key02660004', iv_suffix='Iv02660004')): ["H196Q"],
     (lambda p : signature_keygen(p, key_suffix='8cc72b05705d5c46f412af8cbed55aa', iv_suffix='667b02a85c61c786def4521b060265e')): ["ZXHN F450(EPON ONU)"],
-
+    (lambda p : serialmac_keygen(p)): ["RT-GM-5"]
 }
 
 def run_keygen(params):
